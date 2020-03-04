@@ -18,7 +18,7 @@ def initialize_gpu(gpu_on):
                 # Currently, memory growth needs to be the same across GPUs
                 for gpu in gpu_list:
                     tf.config.experimental.set_memory_growth(gpu, True)
-                n_gpus = len(gpu)
+                n_gpus = len(gpu_list)
             except RuntimeError as e:
                 # Memory growth must be set before GPUs have been initialized
                 print(e)

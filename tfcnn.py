@@ -28,9 +28,10 @@ class Cnn(Model):
         self.dens1 = Dense(units=units[0], activation='relu')
         self.dens2 = Dense(units=units[1], activation='softmax')
 
-    def call(self, inputs):
+    def call(self, inputs, **kwargs):
         """Call model
         :param inputs: input layer
+        :param kwargs:
         :return: output layer
         """
         x = self.conv1(inputs)
@@ -98,7 +99,7 @@ def perform_training(x_data, y_data, model, batch_size=64, epochs=10):
 
 
 def perform_testing(x_data, y_data, model, batch_size=64):
-    """Perform test
+    """Perform testing
     :param x_data: original data
     :param y_data: labels
     :param model: model
@@ -149,11 +150,11 @@ if __name__ == '__main__':
     #   0: training
     #   1: testing
     #   the others: prediction
-    proc_num = 2
+    proc_num = 0
 
     tfgpu.initialize_gpu(gpu_on)    # Initialize GPU devices
 
-    x_train, y_train, x_test, y_test = tfmnist.load_mnist() # Load the MNIST dataset
+    x_train, y_train, x_test, y_test = tfmnist.load_mnist()     # Load the MNIST dataset
 
     # Instantiate the model
     model = Cnn()
@@ -161,13 +162,13 @@ if __name__ == '__main__':
     loss_fn = tf.keras.losses.SparseCategoricalCrossentropy()
     model.compile(optimizer=optimizer, loss=loss_fn)
 
-    # Perform training, test or prediction
-    if proc_num == 0:   # training
+    # Perform training, testing or prediction
+    if proc_num == 0:       # training
         perform_training(x_train, y_train, model)
         model.save_weights('model', save_format='tf')
-    elif proc_num == 1: # testing
+    elif proc_num == 1:     # testing
         model.load_weights('model')
         perform_testing(x_test, y_test, model)
-    else:               # prediction
+    else:                   # prediction
         model.load_weights('model')
         perform_prediction(x_test, y_test, model)
