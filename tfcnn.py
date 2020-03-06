@@ -42,17 +42,19 @@ class Cnn(Model):
 
 
 @tf.function
-def train_step(x, y, model, loss_metrics, accu_metrics):
+def train_step(x, y, model, loss_fn, optimizer, loss_metrics, accu_metrics):
     """Trainiing step
     :param x: original data
     :param y: labels
-    :param model: model
+    :param model:
+    :param loss_fn:
+    :param optimizer:
     :param loss_metrics: loss metrics
     :param accu_metrics: accuracy metrics
     """
     with tf.GradientTape() as tape:
         logits = model(x)
-        loss_value = model.loss(y, logits)
+        loss_value = loss_fn(y, logits)
     grads = tape.gradient(loss_value, model.trainable_variables)
     optimizer.apply_gradients(zip(grads, model.trainable_variables))
     loss_metrics(loss_value)
@@ -60,27 +62,30 @@ def train_step(x, y, model, loss_metrics, accu_metrics):
 
 
 @tf.function
-def test_step(x, y, model, loss_metrics, accu_metrics):
+def test_step(x, y, model, loss_fn, loss_metrics, accu_metrics):
     """Test step
     :param x: original data
     :param y: labels
-    :param model: model
+    :param model:
+    :param loss_fn:
     :param loss_metrics: loss metrics
     :param accu_metrics: accuracy metrics
     :return: output layer
     """
     z = model(x)
-    loss_value = model.loss(y, z)
+    loss_value = loss_fn(y, z)
     loss_metrics(loss_value)
     accu_metrics(y, z)
     return z
 
 
-def perform_training(x_data, y_data, model, batch_size=64, epochs=10):
+def perform_training(x_data, y_data, model, loss_fn, optimizer, batch_size=64, epochs=10):
     """Perform training
     :param x_data: original data
     :param y_data: labels
-    :param model: model
+    :param model:
+    :param loss_fn:
+    :param optimizer:
     :param batch_size: batch size
     :param epochs: number of epochs
     """
@@ -90,7 +95,7 @@ def perform_training(x_data, y_data, model, batch_size=64, epochs=10):
     template = 'Epoch %s: Loss = %s, Accuracy = %s'
     for epoch in range(epochs):
         for x, y in dataset:
-            train_step(x, y, model, loss_metrics, accu_metrics)
+            train_step(x, y, model, loss_fn, optimizer, loss_metrics, accu_metrics)
         print(template % (epoch + 1,
                           loss_metrics.result(),
                           accu_metrics.result() * 100.0))
@@ -98,11 +103,12 @@ def perform_training(x_data, y_data, model, batch_size=64, epochs=10):
         accu_metrics.reset_states()
 
 
-def perform_testing(x_data, y_data, model, batch_size=64):
+def perform_testing(x_data, y_data, model, loss_fn, batch_size=64):
     """Perform testing
     :param x_data: original data
     :param y_data: labels
-    :param model: model
+    :param model:
+    :param loss_fn:
     :param batch_size: batch size
     """
     dataset = tf.data.Dataset.from_tensor_slices((x_data, y_data)).batch(batch_size)
@@ -110,33 +116,40 @@ def perform_testing(x_data, y_data, model, batch_size=64):
     accu_metrics = tf.keras.metrics.SparseCategoricalAccuracy(name='test_accuracy')
     template = 'Loss = %s, Accuracy = %s'
     for x, y in dataset:
-        test_step(x, y, model, loss_metrics, accu_metrics)
+        test_step(x, y, model, loss_fn, loss_metrics, accu_metrics)
     print(template % (loss_metrics.result(),
                       accu_metrics.result() * 100.0))
 
 
-def perform_prediction(x_data, y_data, model, batch_size=1):
+def perform_prediction(x_data, y_data, model, loss_fn, batch_size=1):
     """Perform prediction
     :param x_data: original data
     :param y_data: labels
-    :param model: model
+    :param model:
+    :param loss_fn:
     :param batch_size: batch size
     """
     dataset = tf.data.Dataset.from_tensor_slices((x_data, y_data)).batch(batch_size)
     loss_metrics = tf.keras.metrics.Mean(name='pred_loss')
     accu_metrics = tf.keras.metrics.SparseCategoricalAccuracy(name='pred_accuracy')
     shape = x_data.shape[1:3]
-    labels = range(10)
+    labels = [str(i) for i in range(10)]
+    image_title = 'Label = %d, Prod. = %d'
+    graph_title = 'Loss = %.2f, Accuracy = %.2f'
     template = 'Number %s: Loss = %s, Accuracy = %s'
     for x, y in dataset:
-        logits = test_step(x, y, model, loss_metrics, accu_metrics)
-        if np.argmax(logits) != y:
-            print(template % (y,
-                              loss_metrics.result(),
-                              accu_metrics.result() * 100.0))
+        logits = test_step(x, y, model, loss_fn, loss_metrics, accu_metrics)
+        prod_label = np.argmax(logits)
+        if y != prod_label:
+            loss = loss_metrics.result()
+            accuracy = accu_metrics.result() * 100.0
+            print(template % (y, loss, accuracy))
             plt.subplot(1, 2, 1)
+            plt.axis('off')
+            plt.title(image_title % (y, prod_label))
             plt.imshow(np.array(x).reshape(shape), cmap='gray')
             plt.subplot(1, 2, 2)
+            plt.title(graph_title % (loss, accuracy))
             plt.bar(labels, logits[0], align='center')
             plt.show()
         loss_metrics.reset_states()
@@ -150,7 +163,7 @@ if __name__ == '__main__':
     #   0: training
     #   1: testing
     #   the others: prediction
-    proc_num = 0
+    proc_num = 2
 
     tfgpu.initialize_gpu(gpu_on)    # Initialize GPU devices
 
@@ -160,15 +173,14 @@ if __name__ == '__main__':
     model = Cnn()
     optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3)
     loss_fn = tf.keras.losses.SparseCategoricalCrossentropy()
-    model.compile(optimizer=optimizer, loss=loss_fn)
 
     # Perform training, testing or prediction
     if proc_num == 0:       # training
-        perform_training(x_train, y_train, model)
+        perform_training(x_train, y_train, model, loss_fn, optimizer)
         model.save_weights('model', save_format='tf')
     elif proc_num == 1:     # testing
         model.load_weights('model')
-        perform_testing(x_test, y_test, model)
+        perform_testing(x_test, y_test, model, loss_fn)
     else:                   # prediction
         model.load_weights('model')
-        perform_prediction(x_test, y_test, model)
+        perform_prediction(x_test, y_test, model, loss_fn)
