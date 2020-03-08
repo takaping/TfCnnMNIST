@@ -30,9 +30,9 @@ class Cnn(Model):
 
     def call(self, inputs, **kwargs):
         """Call model
-        :param inputs: input layer
+        :param inputs: original space
         :param kwargs:
-        :return: output layer
+        :return: predicted space
         """
         x = self.conv1(inputs)
         x = self.flatten(x)
@@ -53,12 +53,12 @@ def train_step(x, y, model, loss_fn, optimizer, loss_metrics, accu_metrics):
     :param accu_metrics: accuracy metrics
     """
     with tf.GradientTape() as tape:
-        logits = model(x)
-        loss_value = loss_fn(y, logits)
+        pred = model(x)
+        loss_value = loss_fn(y, pred)
     grads = tape.gradient(loss_value, model.trainable_variables)
     optimizer.apply_gradients(zip(grads, model.trainable_variables))
     loss_metrics(loss_value)
-    accu_metrics(y, logits)
+    accu_metrics(y, pred)
 
 
 @tf.function
@@ -70,7 +70,7 @@ def test_step(x, y, model, loss_fn, loss_metrics, accu_metrics):
     :param loss_fn:
     :param loss_metrics: loss metrics
     :param accu_metrics: accuracy metrics
-    :return: output layer
+    :return: predicted space
     """
     z = model(x)
     loss_value = loss_fn(y, z)
@@ -138,8 +138,8 @@ def perform_prediction(x_data, y_data, model, loss_fn, batch_size=1):
     graph_title = 'Loss = %.2f, Accuracy = %.2f'
     template = 'Number %s: Loss = %s, Accuracy = %s'
     for x, y in dataset:
-        logits = test_step(x, y, model, loss_fn, loss_metrics, accu_metrics)
-        prod_label = np.argmax(logits)
+        pred = test_step(x, y, model, loss_fn, loss_metrics, accu_metrics)
+        prod_label = np.argmax(pred)
         if y != prod_label:
             loss = loss_metrics.result()
             accuracy = accu_metrics.result() * 100.0
@@ -150,7 +150,7 @@ def perform_prediction(x_data, y_data, model, loss_fn, batch_size=1):
             plt.imshow(np.array(x).reshape(shape), cmap='gray')
             plt.subplot(1, 2, 2)
             plt.title(graph_title % (loss, accuracy))
-            plt.bar(labels, logits[0], align='center')
+            plt.bar(labels, pred[0], align='center')
             plt.show()
         loss_metrics.reset_states()
         accu_metrics.reset_states()
