@@ -6,8 +6,7 @@ from tensorflow.keras import Model
 from tensorflow.keras.layers import Conv2D, Flatten, Dense
 import numpy as np
 import matplotlib.pyplot as plt
-import tfgpu
-import tfmnist
+from tfcommon import tfgpu, tfmnist
 
 
 class Cnn(Model):
